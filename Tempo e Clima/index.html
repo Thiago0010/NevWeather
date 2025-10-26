@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Previsão — NevWeather</title>
+  <style>
+    :root{--bg:#0f172a;--card:#0b1220;--accent:#60a5fa;--glass:rgba(255,255,255,0.04);--text:#e6eef8}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{background:linear-gradient(180deg,#071029 0%, #0b1b2f 100%);color:var(--text);display:flex;align-items:center;justify-content:center;padding:24px}
+    .app{width:100%;max-width:980px;background:var(--card);border-radius:14px;padding:20px;box-shadow:0 10px 30px rgba(2,6,23,0.6)}
+    header{display:flex;gap:12px;align-items:center}
+    header h1{margin:0;font-size:20px}
+    .controls{margin-left:auto;display:flex;gap:8px}
+    input[type=text]{background:var(--glass);border:1px solid rgba(255,255,255,0.04);padding:10px 12px;border-radius:10px;color:var(--text);min-width:220px}
+    button{background:var(--accent);border:none;padding:10px 12px;border-radius:10px;color:#021124;font-weight:700;cursor:pointer}
+    .main{display:grid;grid-template-columns:1fr 320px;gap:16px;margin-top:18px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:18px;border-radius:12px}
+    .current{display:flex;align-items:center;gap:18px}
+    .temp{font-size:56px;font-weight:800;line-height:1}
+    .meta{color:#b8d1ff}
+    .forecast{display:flex;flex-direction:column;gap:8px}
+    .day{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02)}
+    .small{font-size:13px;color:#9fb6df}
+    footer{margin-top:12px;color:#8fa9d8;font-size:12px}
+    @media(max-width:820px){.main{grid-template-columns:1fr;}.controls{width:100%;justify-content:space-between}.current .temp{font-size:44px}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>NevWeather</h1>
+        <div class="small">Site de previsão simples — digite uma cidade ou use sua localização</div>
+      </div>
+      <div class="controls">
+        <input id="cityInput" placeholder="Ex: São Paulo, Tokyo, Lisboa">
+        <button id="searchBtn">Buscar</button>
+        <button id="locBtn">Usar minha localização</button>
+      </div>
+    </header>
+
+    <div class="main">
+      <div class="card">
+        <div id="current" class="current">
+          <div>
+            <div id="place" class="small">—</div>
+            <div class="temp" id="temp">--°C</div>
+            <div id="desc" class="meta">—</div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div id="icon" style="font-size:44px">⛅️</div>
+            <div id="details" class="small">Vento: — | Hum: —</div>
+          </div>
+        </div>
+
+        <hr style="margin:16px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)">
+
+        <div>
+          <h3 style="margin:0 0 10px 0">Próximos dias</h3>
+          <div id="forecast" class="forecast">
+            <!-- forecast rows -->
+          </div>
+        </div>
+
+        <footer>Dados via Open-Meteo (sem chave). Exemplo educativo.</footer>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">Detalhes</h3>
+        <div id="more" class="small">Busque uma cidade ou use localização para ver detalhes.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // APIs usadas:
+    // - Geocoding: https://geocoding-api.open-meteo.com/v1/search?name=City
+    // - Forecast: https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto
+
+    const $ = id => document.getElementById(id);
+    const searchBtn = $('searchBtn');
+    const locBtn = $('locBtn');
+    const cityInput = $('cityInput');
+
+    async function searchCity(name){
+      const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=5`;
+      const res = await fetch(url);
+      const data = await res.json();
+      return data.results && data.results[0] ? data.results[0] : null;
+    }
+
+    function weatherCodeToEmoji(code){
+      // simplified mapping
+      if(code === 0) return '☀️';
+      if(code <= 3) return '🌤️';
+      if(code <= 48) return '🌫️';
+      if(code <= 67) return '🌨️';
+      if(code <= 77) return '❄️';
+      if(code <= 86) return '🌧️';
+      if(code <= 99) return '⛈️';
+      return '🌡️';
+    }
+
+    async function fetchWeather(lat, lon, nameHint){
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      // populate UI
+      if(data.current_weather){
+        $('place').textContent = nameHint || `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+        const cur = data.current_weather;
+        $('temp').textContent = Math.round(cur.temperature) + '°C';
+        $('desc').textContent = `Vel ${cur.windspeed} km/h — Código ${cur.weathercode}`;
+        $('icon').textContent = weatherCodeToEmoji(cur.weathercode);
+        $('details').textContent = `Direção: ${cur.winddirection}° | Hora: ${cur.time}`;
+
+        // daily
+        const forecastEl = $('forecast');
+        forecastEl.innerHTML = '';
+        const days = data.daily.time;
+        for(let i=0;i<days.length;i++){
+          const d = document.createElement('div');
+          d.className = 'day';
+          d.innerHTML = `<div>${days[i]}</div><div class="small">${Math.round(data.daily.temperature_2m_max[i])}° / ${Math.round(data.daily.temperature_2m_min[i])}°</div><div>${weatherCodeToEmoji(data.daily.weathercode[i])}</div>`;
+          forecastEl.appendChild(d);
+        }
+
+        $('more').textContent = JSON.stringify(data.daily, null, 2).slice(0,800) + '...';
+      } else {
+        alert('Não foi possível obter dados de clima para esta localização.');
+      }
+    }
+
+    searchBtn.addEventListener('click', async ()=>{
+      const q = cityInput.value.trim();
+      if(!q) return alert('Digite o nome de uma cidade.');
+      const place = await searchCity(q);
+      if(!place) return alert('Cidade não encontrada. Tente outro nome.');
+      fetchWeather(place.latitude, place.longitude, `${place.name}${place.country ? ', ' + place.country : ''}`);
+    });
+
+    locBtn.addEventListener('click', ()=>{
+      if(!navigator.geolocation) return alert('Geolocalização não suportada pelo navegador.');
+      navigator.geolocation.getCurrentPosition(pos => {
+        fetchWeather(pos.coords.latitude, pos.coords.longitude, 'Minha localização');
+      }, err => alert('Não foi possível obter localização: ' + err.message));
+    });
+
+    // demo: carrega uma cidade padrão
+    (async ()=>{
+      const demo = await searchCity('São Paulo');
+      if(demo) fetchWeather(demo.latitude, demo.longitude, `${demo.name}, ${demo.country}`);
+    })();
+  </script>
+</body>
+</html>
